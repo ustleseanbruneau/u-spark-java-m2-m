@@ -1,62 +1,42 @@
 package com.leseanbruneau;
 
-import java.util.Arrays;
-import java.util.List;
-
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.apache.spark.SparkConf;
-import org.apache.spark.api.java.JavaPairRDD;
-import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.JavaSparkContext;
-
-import scala.Tuple2;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
 
 public class Main {
 
 	public static void main(String[] args) {
 		
 		// To set Windows Environment variable
-		//System.setProperty("hadoop.home.dir", "c:/hadoop");
+		//System.setProperty("hadoop.home.dir", "c:/hadoop");		
+		//Logger.getLogger("org.apache").setLevel(Level.WARN);
 		
+		// Note: Windows need to add .config() for directory, windows directory does not have to exist to run
+		//SparkSession spark = SparkSession.builder().appName("testingSql").master("local[*]")
+		//		.config("spark.sql.warehouse.dir","file:///c:/temp/spark")
+		//		.getOrCreate();
+		
+		
+		
+		// Run on Linux		
 		Logger.getLogger("org.apache").setLevel(Level.WARN);
 		
-		SparkConf conf = new SparkConf().setAppName("startingSpark").setMaster("local[*]");
-		JavaSparkContext sc = new JavaSparkContext(conf);
+		SparkSession spark = SparkSession.builder().appName("testingSql").master("local[*]")
+				.getOrCreate();
 		
-		JavaRDD<String> initialRdd = sc.textFile("src/main/resources/subtitles/input.txt");
-		//JavaRDD<String> initialRdd = sc.textFile("src/main/resources/subtitles/input-spring.txt");
+		Dataset<Row> dataset = spark.read().option("header", true).csv("src/main/resources/exams/students.csv");
 		
-		JavaRDD<String> lettersOnlyRdd = initialRdd.map( sentence -> sentence.replaceAll("[^a-zA-Z\\s]", "").toLowerCase() );
+		// dataset.show() will default top 20 results
+		dataset.show();
 		
-		JavaRDD<String> removedBlankLines = lettersOnlyRdd.filter( sentence -> sentence.trim().length() > 0);
+		long numberOfRows = dataset.count();
+		System.out.println("There are " + numberOfRows + " records");
 		
-		JavaRDD<String> justWords = removedBlankLines.flatMap(sentence -> Arrays.asList(sentence.split(" ")).iterator());
+		spark.close();
 		
-		JavaRDD<String> blankWordsRemoved = justWords.filter(word -> word.trim().length() > 0);
-		
-		JavaRDD<String> justInterestingWords = blankWordsRemoved.filter(word -> Util.isNotBoring(word));
-		
-		JavaPairRDD<String, Long> pairRdd = justInterestingWords.mapToPair(word -> new Tuple2<String, Long>(word, 1L));
-		
-		JavaPairRDD<String, Long> totals = pairRdd.reduceByKey((value1, value2) -> value1 + value2);
-		
-		JavaPairRDD<Long, String> switched = totals.mapToPair(tuple -> new Tuple2<Long, String> (tuple._2, tuple._1 ));
-		
-		JavaPairRDD<Long, String> sorted = switched.sortByKey(false);
-		
-		
-		//sorted = sorted.coalesce(1);
-		
-		//System.out.println("There are " + sorted.getNumPartitions() + " partitions");
-		
-		//sorted.collect().forEach(System.out::println);
-		
-		
-		List<Tuple2<Long, String>> results = sorted.take(10);
-		results.forEach(System.out::println);
-		
-		sc.close();
 
 	}
 
