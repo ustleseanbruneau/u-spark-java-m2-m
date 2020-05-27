@@ -1,5 +1,6 @@
 package com.leseanbruneau;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -39,60 +40,40 @@ public class Main {
 		
 		
 		// Chapter 66 - Multiple Grouping
-		Dataset<Row> dataset = spark.read().option("header", true).csv("src/main/resources/biglog.txt");
+//		Dataset<Row> dataset = spark.read().option("header", true).csv("src/main/resources/biglog.txt");
 		
-		// Chapter 67 - Ordering
-		
-//		dataset.createOrReplaceTempView("logging_table");
-		
-//		Dataset<Row> results = spark.sql
-//				("select level, date_format(datetime, 'MMMM') as month, first(date_format(datetime, 'M')) as monthnum, count(1) as total "
-//				+ "from logging_table group by level, month order by monthnum");
-//		Dataset<Row> results = spark.sql
-//				("select level, date_format(datetime, 'MMMM') as month, cast(first(date_format(datetime,'M')) as int) as monthnum, count(1) as total "
-//				+ "from logging_table group by level, month order by monthnum");
-//		
-//		results = results.drop("monthnum");
-
-//		Dataset<Row> results = spark.sql
-//				("select level, date_format(datetime, 'MMMM') as month, count(1) as total "
-//				+ "from logging_table group by level, month order by cast(first(date_format(datetime,'M')) as int), level");
-		
-		// Chapter 68 - DataFrames
-		// convert to pure Java code
-		
-		//dataset = dataset.selectExpr("level","date_format(datetime,'MMMM') as month");
-		//dataset = dataset.select(col("level"),date_format(col("datetime"), "MMMM"));
-		// Add column alias
 //		dataset = dataset.select(col("level"),
 //				date_format(col("datetime"), "MMMM").alias("month"), 
 //				date_format(col("datetime"), "M").alias("monthnum").cast(DataTypes.IntegerType) );
+//		
+//		Object[] months = new Object[] { "January", "February", "March", "April", "May", "June", "July", "August", "September", "Augcember", "October", "November", "December" };
+//		List<Object> columns = Arrays.asList(months);
+//		
+//		
+//		// Replace null values with zero
+//		dataset = dataset.groupBy("level").pivot("month", columns).count().na().fill(0);
 		
-		// 
-//		dataset = dataset.groupBy(col("level"),col("month"),col("monthnum")).count();
-//		dataset = dataset.orderBy(col("monthnum"), col("level"));
-//		dataset = dataset.drop(col("monthnum"));
-
+		// Chapter 76 - UDF in Spark SQL
+		Dataset<Row> dataset = spark.read().option("header", true).csv("src/main/resources/biglog.txt");
 		
-		dataset = dataset.select(col("level"),
-				date_format(col("datetime"), "MMMM").alias("month"), 
-				date_format(col("datetime"), "M").alias("monthnum").cast(DataTypes.IntegerType) );
+		SimpleDateFormat input = new SimpleDateFormat("MMMM");
+		SimpleDateFormat output = new SimpleDateFormat("M");
 		
-		// unordered months
-		//dataset = dataset.groupBy("level").pivot("month").count();
-		// order with interger month
-		//dataset = dataset.groupBy("level").pivot("monthnum").count();
+		spark.udf().register("monthNum", (String month) -> {
+			java.util.Date inputDate = input.parse(month);
+			return Integer.parseInt(output.format(inputDate));
+		}, DataTypes.IntegerType);
 		
-		// order with prepopulated list of values
-		//Object[] months = new Object[] { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" };
-		// Add invalid month
-		Object[] months = new Object[] { "January", "February", "March", "April", "May", "June", "July", "August", "September", "Augcember", "October", "November", "December" };
-		List<Object> columns = Arrays.asList(months);
+		dataset.createOrReplaceTempView("logging_table");
+//		Dataset<Row> results = spark.sql
+//				("select level, date_format(datetime, 'MMMM') as month, count(1) as total " +
+//				"from logging_table group by level, month order by cast(first(date_format(datetime,'M')) as int), level");
 		
-		//dataset = dataset.groupBy("level").pivot("month", columns).count();
-		
-		// Replace null values with zero
-		dataset = dataset.groupBy("level").pivot("month", columns).count().na().fill(0);
+		// using UDF function monthNum
+		// cleans up order by clause - removes cast(first(....
+		Dataset<Row> results = spark.sql
+				("select level, date_format(datetime, 'MMMM') as month, count(1) as total " +
+				"from logging_table group by level, month order by monthNum(month), level");
 		
 		dataset.show(100);
 		
