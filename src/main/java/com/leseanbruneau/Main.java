@@ -37,37 +37,57 @@ public class Main {
 		
 		//Dataset<Row> dataset = spark.read().option("header", true).csv("src/main/resources/exams/students.csv");
 		
-		List<Row> inMemory = new ArrayList<Row>();
+//		List<Row> inMemory = new ArrayList<Row>();
+//		
+//		inMemory.add(RowFactory.create("WARN", "2016-12-31 04:19:32"));
+//		inMemory.add(RowFactory.create("FATAL", "2016-12-31 03:22:34"));
+//		inMemory.add(RowFactory.create("WARN", "2016-12-31 03:21:21"));
+//		inMemory.add(RowFactory.create("INFO", "2015-4-21 14:32:21"));
+//		inMemory.add(RowFactory.create("FATAL","2015-4-21 19:23:20"));
 		
-		inMemory.add(RowFactory.create("WARN", "2016-12-31 04:19:32"));
-		inMemory.add(RowFactory.create("FATAL", "2016-12-31 03:22:34"));
-		inMemory.add(RowFactory.create("WARN", "2016-12-31 03:21:21"));
-		inMemory.add(RowFactory.create("INFO", "2015-4-21 14:32:21"));
-		inMemory.add(RowFactory.create("FATAL","2015-4-21 19:23:20"));
+//		StructField[] fields = new StructField[] {
+//				new StructField("level", DataTypes.StringType, false, Metadata.empty()),
+//				new StructField("datetime", DataTypes.StringType, false, Metadata.empty())
+//		};
+//		
+//		StructType schema = new StructType(fields);
+//		Dataset<Row> dataset = spark.createDataFrame(inMemory, schema );
 		
-		StructField[] fields = new StructField[] {
-				new StructField("level", DataTypes.StringType, false, Metadata.empty()),
-				new StructField("datetime", DataTypes.StringType, false, Metadata.empty())
-		};
+		// Chapter 66 - Multiple Grouping
+		Dataset<Row> dataset = spark.read().option("header", true).csv("src/main/resources/biglog.txt");
 		
-		StructType schema = new StructType(fields);
-		Dataset<Row> dataset = spark.createDataFrame(inMemory, schema );
+		dataset.createOrReplaceTempView("logging_table");
 		
-		dataset.show();
+		//  Section 64 - Group By
+		//Dataset<Row> results = spark.sql("select level, count(datetime) from logging_table group by level order by level");
+		//Dataset<Row> results = spark.sql("select level, collect_list(datetime) from logging_table group by level order by level");
 		
-		//Dataset<Row> modernArtResults = dataset.filter( (FilterFunction<Row>) row -> row.getAs("subject").equals("Modern Art") 
-		//		&& Integer.parseInt(row.getAs("year")) >= 2007);
+		// Section 65 - Date Formatting
+		//Dataset<Row> results = spark.sql("select level, date_format(datetime, 'yyyy') from logging_table");
+		// 'M' - number, no leading zero
+		//Dataset<Row> results = spark.sql("select level, date_format(datetime, 'M') from logging_table");
+		// 'MM' - number with leading zero
+		//Dataset<Row> results = spark.sql("select level, date_format(datetime, 'MM') from logging_table");
+		// 'MMM' - letters, short month name
+		//Dataset<Row> results = spark.sql("select level, date_format(datetime, 'MMM') from logging_table");
+		// 'MMMM' - letters, month spelled out
+		//Dataset<Row> results = spark.sql("select level, date_format(datetime, 'MMMM') as month from logging_table");
 		
-		// temporary view
-		//dataset.createOrReplaceTempView("my_students_table");
+		// Section 66 - Multiple Groupings
+		//results.createOrReplaceTempView("logging_table");
+		//results = spark.sql("select level, month, count(1) as total from logging_table group by level, month");
 		
-		//Dataset<Row> results = spark.sql("select score, year from my_students_table where subject='French'");
-		//Dataset<Row> results = spark.sql("select max(score) from my_students_table where subject='French'");
-		//Dataset<Row> results = spark.sql("select avg(score) from my_students_table where subject='French'");
-		//Dataset<Row> results = spark.sql("select distinct(year) from my_students_table where subject='French' order by year");
-		//Dataset<Row> results = spark.sql("select distinct(year) from my_students_table order by year desc");
+		Dataset<Row> results = spark.sql("select level, date_format(datetime, 'MMMM') as month, count(1) as total from logging_table group by level, month");
+		
 		
 		//results.show();
+		// show up to 100 rows
+		results.show(100);
+		
+		results.createOrReplaceTempView("results_table");
+		
+		Dataset<Row> totals = spark.sql("select sum(total) from results_table");
+		totals.show();
 		
 		spark.close();
 		
