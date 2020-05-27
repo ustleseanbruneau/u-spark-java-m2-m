@@ -1,6 +1,7 @@
 package com.leseanbruneau;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.log4j.Level;
@@ -9,6 +10,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
+import static org.apache.spark.sql.functions.*;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Metadata;
 import org.apache.spark.sql.types.StructField;
@@ -35,59 +37,64 @@ public class Main {
 		SparkSession spark = SparkSession.builder().appName("testingSql").master("local[*]")
 				.getOrCreate();
 		
-		//Dataset<Row> dataset = spark.read().option("header", true).csv("src/main/resources/exams/students.csv");
-		
-//		List<Row> inMemory = new ArrayList<Row>();
-//		
-//		inMemory.add(RowFactory.create("WARN", "2016-12-31 04:19:32"));
-//		inMemory.add(RowFactory.create("FATAL", "2016-12-31 03:22:34"));
-//		inMemory.add(RowFactory.create("WARN", "2016-12-31 03:21:21"));
-//		inMemory.add(RowFactory.create("INFO", "2015-4-21 14:32:21"));
-//		inMemory.add(RowFactory.create("FATAL","2015-4-21 19:23:20"));
-		
-//		StructField[] fields = new StructField[] {
-//				new StructField("level", DataTypes.StringType, false, Metadata.empty()),
-//				new StructField("datetime", DataTypes.StringType, false, Metadata.empty())
-//		};
-//		
-//		StructType schema = new StructType(fields);
-//		Dataset<Row> dataset = spark.createDataFrame(inMemory, schema );
 		
 		// Chapter 66 - Multiple Grouping
 		Dataset<Row> dataset = spark.read().option("header", true).csv("src/main/resources/biglog.txt");
 		
-		dataset.createOrReplaceTempView("logging_table");
+		// Chapter 67 - Ordering
 		
-		//  Section 64 - Group By
-		//Dataset<Row> results = spark.sql("select level, count(datetime) from logging_table group by level order by level");
-		//Dataset<Row> results = spark.sql("select level, collect_list(datetime) from logging_table group by level order by level");
+//		dataset.createOrReplaceTempView("logging_table");
 		
-		// Section 65 - Date Formatting
-		//Dataset<Row> results = spark.sql("select level, date_format(datetime, 'yyyy') from logging_table");
-		// 'M' - number, no leading zero
-		//Dataset<Row> results = spark.sql("select level, date_format(datetime, 'M') from logging_table");
-		// 'MM' - number with leading zero
-		//Dataset<Row> results = spark.sql("select level, date_format(datetime, 'MM') from logging_table");
-		// 'MMM' - letters, short month name
-		//Dataset<Row> results = spark.sql("select level, date_format(datetime, 'MMM') from logging_table");
-		// 'MMMM' - letters, month spelled out
-		//Dataset<Row> results = spark.sql("select level, date_format(datetime, 'MMMM') as month from logging_table");
+//		Dataset<Row> results = spark.sql
+//				("select level, date_format(datetime, 'MMMM') as month, first(date_format(datetime, 'M')) as monthnum, count(1) as total "
+//				+ "from logging_table group by level, month order by monthnum");
+//		Dataset<Row> results = spark.sql
+//				("select level, date_format(datetime, 'MMMM') as month, cast(first(date_format(datetime,'M')) as int) as monthnum, count(1) as total "
+//				+ "from logging_table group by level, month order by monthnum");
+//		
+//		results = results.drop("monthnum");
+
+//		Dataset<Row> results = spark.sql
+//				("select level, date_format(datetime, 'MMMM') as month, count(1) as total "
+//				+ "from logging_table group by level, month order by cast(first(date_format(datetime,'M')) as int), level");
 		
-		// Section 66 - Multiple Groupings
-		//results.createOrReplaceTempView("logging_table");
-		//results = spark.sql("select level, month, count(1) as total from logging_table group by level, month");
+		// Chapter 68 - DataFrames
+		// convert to pure Java code
 		
-		Dataset<Row> results = spark.sql("select level, date_format(datetime, 'MMMM') as month, count(1) as total from logging_table group by level, month");
+		//dataset = dataset.selectExpr("level","date_format(datetime,'MMMM') as month");
+		//dataset = dataset.select(col("level"),date_format(col("datetime"), "MMMM"));
+		// Add column alias
+//		dataset = dataset.select(col("level"),
+//				date_format(col("datetime"), "MMMM").alias("month"), 
+//				date_format(col("datetime"), "M").alias("monthnum").cast(DataTypes.IntegerType) );
 		
+		// 
+//		dataset = dataset.groupBy(col("level"),col("month"),col("monthnum")).count();
+//		dataset = dataset.orderBy(col("monthnum"), col("level"));
+//		dataset = dataset.drop(col("monthnum"));
+
 		
-		//results.show();
-		// show up to 100 rows
-		results.show(100);
+		dataset = dataset.select(col("level"),
+				date_format(col("datetime"), "MMMM").alias("month"), 
+				date_format(col("datetime"), "M").alias("monthnum").cast(DataTypes.IntegerType) );
 		
-		results.createOrReplaceTempView("results_table");
+		// unordered months
+		//dataset = dataset.groupBy("level").pivot("month").count();
+		// order with interger month
+		//dataset = dataset.groupBy("level").pivot("monthnum").count();
 		
-		Dataset<Row> totals = spark.sql("select sum(total) from results_table");
-		totals.show();
+		// order with prepopulated list of values
+		//Object[] months = new Object[] { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" };
+		// Add invalid month
+		Object[] months = new Object[] { "January", "February", "March", "April", "May", "June", "July", "August", "September", "Augcember", "October", "November", "December" };
+		List<Object> columns = Arrays.asList(months);
+		
+		//dataset = dataset.groupBy("level").pivot("month", columns).count();
+		
+		// Replace null values with zero
+		dataset = dataset.groupBy("level").pivot("month", columns).count().na().fill(0);
+		
+		dataset.show(100);
 		
 		spark.close();
 		
