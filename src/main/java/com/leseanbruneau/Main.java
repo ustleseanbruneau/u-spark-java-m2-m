@@ -1,13 +1,18 @@
 package com.leseanbruneau;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.apache.spark.api.java.function.FilterFunction;
-import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
+import org.apache.spark.sql.RowFactory;
 import org.apache.spark.sql.SparkSession;
-import static org.apache.spark.sql.functions.*;
+import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.types.Metadata;
+import org.apache.spark.sql.types.StructField;
+import org.apache.spark.sql.types.StructType;
 
 public class Main {
 
@@ -30,51 +35,39 @@ public class Main {
 		SparkSession spark = SparkSession.builder().appName("testingSql").master("local[*]")
 				.getOrCreate();
 		
-		Dataset<Row> dataset = spark.read().option("header", true).csv("src/main/resources/exams/students.csv");
+		//Dataset<Row> dataset = spark.read().option("header", true).csv("src/main/resources/exams/students.csv");
 		
-		// dataset.show() will default top 20 results
-		//dataset.show();
+		List<Row> inMemory = new ArrayList<Row>();
 		
-		//long numberOfRows = dataset.count();
-		//System.out.println("There are " + numberOfRows + " records");
+		inMemory.add(RowFactory.create("WARN", "2016-12-31 04:19:32"));
+		inMemory.add(RowFactory.create("FATAL", "2016-12-31 03:22:34"));
+		inMemory.add(RowFactory.create("WARN", "2016-12-31 03:21:21"));
+		inMemory.add(RowFactory.create("INFO", "2015-4-21 14:32:21"));
+		inMemory.add(RowFactory.create("FATAL","2015-4-21 19:23:20"));
 		
-		//Row firstRow = dataset.first();
+		StructField[] fields = new StructField[] {
+				new StructField("level", DataTypes.StringType, false, Metadata.empty()),
+				new StructField("datetime", DataTypes.StringType, false, Metadata.empty())
+		};
 		
-		//String subject = (String) firstRow.get(2).toString();
-		//String subject = (String) firstRow.getAs("subject").toString();
-		//System.out.println(subject);
+		StructType schema = new StructType(fields);
+		Dataset<Row> dataset = spark.createDataFrame(inMemory, schema );
 		
-		//int year = Integer.parseInt(firstRow.getAs("year"));
-		//System.out.println("The year was: " + year);
+		dataset.show();
 		
-		// First approach
-		//Dataset<Row> modernArtResults = dataset.filter("subject = 'Modern Art' ");
-		//Dataset<Row> modernArtResults = dataset.filter("subject = 'Modern Art' AND year >= 2007 ");
-		
-		// Second approach
 		//Dataset<Row> modernArtResults = dataset.filter( (FilterFunction<Row>) row -> row.getAs("subject").equals("Modern Art") 
 		//		&& Integer.parseInt(row.getAs("year")) >= 2007);
 		
-		// Third approach
-		//Column subjectColumn = dataset.col("subject");
-		//Column yearColumn = dataset.col("year");
-		//Dataset<Row> modernArtResults = dataset.filter(subjectColumn.equalTo("Modern Art")
-		//		.and(yearColumn.geq(2007)));
+		// temporary view
+		//dataset.createOrReplaceTempView("my_students_table");
 		
+		//Dataset<Row> results = spark.sql("select score, year from my_students_table where subject='French'");
+		//Dataset<Row> results = spark.sql("select max(score) from my_students_table where subject='French'");
+		//Dataset<Row> results = spark.sql("select avg(score) from my_students_table where subject='French'");
+		//Dataset<Row> results = spark.sql("select distinct(year) from my_students_table where subject='French' order by year");
+		//Dataset<Row> results = spark.sql("select distinct(year) from my_students_table order by year desc");
 		
-		//Fourth approach
-		//Column subjectColumn = functions.col("subject");
-		
-		// import static org.apache.spark.sql.functions.*;
-		// line would be
-		//  Column subjectColumn = col("subject");
-		// or
-		//  no Column definitions
-		Dataset<Row> modernArtResults = 
-		         dataset.filter(col("subject").equalTo("Modern Art").and(col("year").geq(2007)));
-		
-		// This will shuffle data around, load into memory
-		modernArtResults.show();
+		//results.show();
 		
 		spark.close();
 		
